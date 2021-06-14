@@ -11,20 +11,84 @@
 
 #define MAX_LEN 1000000
 
+char *genome;
+
+char *strremove(char *str, const char *sub) {
+  char *p, *q, *r;
+  if ((q = r = strstr(str, sub)) != NULL) {
+      size_t len = strlen(sub);
+      while ((r = strstr(p = r + len, sub)) != NULL) {
+          while (p < r)
+              *q++ = *p++;
+      }
+      while ((*q++ = *p++) != '\0')
+          continue;
+  }
+  return str;
+}
+
 void read_genome(int client_socket) {
-  char buff[MAX_LEN];
+  char *buff;
+  buff = malloc(MAX_LEN);
+  genome = realloc(genome, MAX_LEN);
+
+  int first_pass = 1;
+  int end_flag = 0;
 
   for (;;) {
     bzero(buff, MAX_LEN);
     recv(client_socket , buff , MAX_LEN , 0);
+    buff[strcspn(buff, "\r\n")] = 0;
 
-    if (strncmp(buff, "END_GENOME", 11) == 0){
-      break;
+    if (first_pass == 0) {
+      genome = realloc(genome, strlen(genome) + MAX_LEN + 1);
     }
-    printf("%s\n", buff);
+
+    first_pass = 0;
+
+    if (strstr(buff, "END") != NULL){
+      buff = strremove(buff, "END");
+      end_flag = 1;
+    }
+
+    strcat(genome, buff);
+
+    if (end_flag) break;
   }
 
+  printf("%lu\n", strlen(genome));
+
   return;
+}
+
+void search_sequences(int client_socket) {
+  char *buff;
+  buff = malloc(MAX_LEN);
+
+  int number_of_test = 1;
+  int end_flag = 0;
+
+  for (;;) {
+    bzero(buff, MAX_LEN);
+    recv(client_socket , buff , MAX_LEN , 0);
+    buff[strcspn(buff, "\r\n")] = 0;
+
+    if (strstr(buff, "END") != NULL){
+      buff = strremove(buff, "END");
+      end_flag = 1;
+    }
+
+    printf("Test #%d = ", number_of_test);
+
+    if (strstr(genome, buff) == NULL) {
+      printf("Not found\n");
+    } else {
+      printf("Found \n");
+    }
+    number_of_test++;
+
+    if(end_flag) break;
+  }
 }
 
 int main () {
@@ -61,6 +125,10 @@ int main () {
 
       if (strcmp(msg, "1") == 0) {
         read_genome(client_socket);
+      }
+
+      if (strcmp(msg, "2") == 0) {
+        search_sequences(client_socket);
       }
       
     }
