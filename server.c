@@ -86,12 +86,22 @@ char **append(char **oldMatrix, int *size, const char str[MAX_LEN]) {
 }
 
 void *map(void* arg) {
-  int *index = (int *)arg;
-  printf("Test #%d %s = ", *index, sequences.seqs[*index]);
-  if (strstr(genome, sequences.seqs[*index]) == NULL) {
-    printf("Not found\n");
+
+  int max_threads;
+
+  if(sequences.size < sequences.pool_size) {
+    max_threads = sequences.size;
   } else {
-    printf("Found \n");
+    max_threads = sequences.pool_size;
+  }
+  int *start = (int *)arg;
+  for (int index = *start; index < *start + max_threads && index < sequences.size; index++) {
+    printf("Test #%d %s = ", index, sequences.seqs[index]);
+    if (strstr(genome, sequences.seqs[index]) == NULL) {
+      printf("Not found\n");
+    } else {
+      printf("Found \n");
+    }
   }
 
 }
@@ -127,12 +137,13 @@ void search_sequences(int client_socket) {
 
   pthread_t threads[max_threads];
   for (int i = 0; i < sequences.size; i+=max_threads) {
-
-    for(int j = 0; j < max_threads; j++) {
-      idx = i + j;
       rc = pthread_create(&threads[i], NULL, map, (void *)&idx);
-    }
   }
+
+  for (int i = 0; i < sequences.size; i+=max_threads) {
+      rc = pthread_join(threads[i], NULL);
+  }
+
 
 }
 
