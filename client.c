@@ -35,7 +35,7 @@ int msleep(long msec)
 }
 
 void upload_genome(char* fName, int server_socket) {
-  char resp[100];
+  char resp[MAX_LEN];
   char fname[1024];
   FILE *fp;
 
@@ -62,16 +62,16 @@ void upload_genome(char* fName, int server_socket) {
   
   char* endMsg = "END_GENOME";
   send(server_socket, endMsg, strlen(endMsg), 0);
-  memset(resp, 0, 100);
+  memset(resp, 0, MAX_LEN);
   for(;;) {
-    if( recv(server_socket , resp , 100 , 0) < 0) {
+    if( recv(server_socket , resp , MAX_LEN , 0) < 0) {
       puts("recv failed");
       break;
     } else { 
       break;
     }
   }
-  strncpy(resp, resp, strlen(resp));
+
   printf("Genome size: %s\n", resp);
 
   free(buff);
@@ -118,7 +118,7 @@ void search_sequences(char* fName, int server_socket) {
       break;
     }
   }
-  strncpy(resp, resp, strlen(resp));
+
   printf("%s", resp);
 
   free(buff);
@@ -167,6 +167,10 @@ int main () {
       strcpy(msg, "2");
       send(server_socket, msg, strlen(msg), 0);
       search_sequences(fName, server_socket);
+    }
+
+    if (command != 1 && command != 2 && command != 3) {
+      printf("--------Este comando no existe, por favor intente de nuevo--------\n");
     }
 
     printf("\n");

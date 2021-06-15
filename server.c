@@ -49,7 +49,7 @@ char *strremove(char *str, const char *sub) {
 
 void read_genome(int client_socket) {
   char *buff;
-  char msg[1024];
+  char msg[MAX_LEN];
   buff = malloc(MAX_LEN);
   genome = realloc(genome, MAX_LEN);
 
@@ -72,24 +72,24 @@ void read_genome(int client_socket) {
       end_flag = 1;
     }
 
-    strcat(genome, buff);
 
-    sprintf(msg, "%d", (int) strlen(genome));
-    //printf("%lu\n", strlen(msg));
-    for(;;) {
-      if(send(client_socket, msg, strlen(msg), 0) < 0) {
-        puts("Send failed");
-        break;
-      } else {
-        break;
-      }
-    }
+    strcpy(genome, buff);
 
     if (end_flag) break;
   }
 
+  sprintf(msg, "%d", (int) strlen(genome));
+  //printf("%d\n", (int) strlen(msg));
+  for(;;) {
+    if(send(client_socket, msg, strlen(msg), 0) < 0) {
+      puts("Send failed");
+      break;
+    } else {
+      break;
+    }
+  }
   //printf("%lu\n", strlen(genome));
-
+  printf("%s\n", genome);
   return;
 }
 
@@ -236,14 +236,16 @@ int main () {
     return 1;
   }
   puts("bind done");
-  
   // listen
   listen(server_socket, 3);
 
+wait_for_new_connection:
+	puts("Waiting for incoming connections...");
+  
   // accept
   int client_socket;
   client_socket = accept(server_socket, NULL, NULL);
-
+	puts("Client connection accepted");
 /* ---------------------------- Socket Connection --------------------------- */
   int read_size;
   char msg[MAX_LEN];
@@ -273,16 +275,16 @@ int main () {
         for (int i = 0; i < sequences.size; i++) {
           memset(resp, 0, strlen(resp));
           strncat(resp, "Seq #", strlen("Seq #"));
-          printf("Seq #%d = ", i);
+          //printf("Seq #%d = ", i);
           memset(int_buff, 0, strlen(int_buff));
           sprintf(int_buff, "%d", i);
           strncat(resp, int_buff, strlen(int_buff));
           int idx = sequences.found_idx[i];
           if (idx < 0) {
-            printf("Not found\n");
+            //printf("Not found\n");
             strncat(resp, " = Not found\n", strlen(" = Not found\n"));
           } else {
-            printf("Found at index %d\n", idx);
+            //printf("Found at index %d\n", idx);
             strncat(resp, " = Found at index ", strlen(" = Found at index "));
             memset(int_buff, 0, strlen(int_buff));
             sprintf(int_buff, "%d\n", idx);
@@ -313,24 +315,24 @@ int main () {
         //printf("%s", send_buff);
         
         memset(double_buff, 0, strlen(double_buff));
-        sprintf(double_buff, "El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent);
+        sprintf(double_buff, "El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent * 100);
         strncat(send_buff, double_buff, strlen(double_buff));
 
-        printf("El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent * 100);
+        //printf("El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent * 100);
         
         memset(int_buff, 0, strlen(int_buff));
         sprintf(int_buff, "%d secuencias mapeadas\n", mapped_count);
         strncat(send_buff, int_buff, strlen(int_buff));
 
-        printf("%d secuencias mapeadas\n", mapped_count);
+        //printf("%d secuencias mapeadas\n", mapped_count);
         
         memset(int_buff, 0, strlen(int_buff));
         sprintf(int_buff, "%d secuencias no mapeadas\n", sequences.size - mapped_count);
         strncat(send_buff, int_buff, strlen(int_buff));
         
-        printf("%d secuencias no mapeadas\n", sequences.size - mapped_count);
+        //printf("%d secuencias no mapeadas\n", sequences.size - mapped_count);
 
-        printf("%s", send_buff);
+        //printf("%s", send_buff);
 
         for(;;) {
           if(send(client_socket, send_buff, strlen(send_buff), 0) < 0) {
@@ -352,6 +354,7 @@ int main () {
 
   if (read_size == 0) {
     puts("Client disconnected");
+    goto wait_for_new_connection;
   } else if(read_size == -1) {
     perror("recv failed");
   }
