@@ -212,6 +212,15 @@ void search_sequences(int client_socket) {
   msleep(25);
 }
 
+void cleanup() {
+  free(genome);
+  genome = malloc(MAX_LEN);
+  free(genomeCheck);
+  genomeCheck = malloc(MAX_LEN);
+  freeArray(&sequences);
+  freeArray(&sequencesResults);
+}
+
 int main () {
   // create socket
   int server_socket;
@@ -251,6 +260,7 @@ int main () {
       if (strcmp(msg, "2") == 0) {
         read_sequences(client_socket);
         search_sequences(client_socket);
+        cleanup();
       }
       
     }
