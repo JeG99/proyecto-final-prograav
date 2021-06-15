@@ -20,6 +20,7 @@ struct SequencesStruct {
   int pool_size;
   int size;
   char **seqs;
+  int *found_idx;
 } sequences;
 
 char *strremove(char *str, const char *sub) {
@@ -94,13 +95,16 @@ void *map(void* arg) {
   } else {
     max_threads = sequences.pool_size;
   }
-  int *start = (int *)arg;
-  for (int index = *start; index < *start + max_threads && index < sequences.size; index++) {
+  int start = (int)arg;
+  for (int index = start; index < start + max_threads && index < sequences.size; index++) {
     printf("Test #%d %s = ", index, sequences.seqs[index]);
-    if (strstr(genome, sequences.seqs[index]) == NULL) {
+    char* search = strstr(genome, sequences.seqs[index]);
+    if (search == NULL) {
       printf("Not found\n");
     } else {
-      printf("Found \n");
+      int idx = search - genome;
+      printf("Found at index %d\n", idx);
+      sequences.found_idx[index] = idx;
     }
   }
 
@@ -123,6 +127,8 @@ void search_sequences(int client_socket) {
       end_flag = 1;
     }
     sequences.seqs = append(sequences.seqs, &sequences.size, buff);
+    sequences.found_idx = (int *)realloc(sequences.found_idx, (sequences.size) * sizeof(int));
+    sequences.found_idx[sequences.size] = -1;
     if(end_flag) break;
   }
 
@@ -134,10 +140,11 @@ void search_sequences(int client_socket) {
   } else {
     max_threads = sequences.pool_size;
   }
+  if (max_threads == 0) max_threads = 1;
 
   pthread_t threads[max_threads];
-  for (int i = 0; i < sequences.size; i+=max_threads) {
-      rc = pthread_create(&threads[i], NULL, map, (void *)&idx);
+  for (int i = 0, k = 0; i < sequences.size / max_threads; i++, k += max_threads) {
+      rc = pthread_create(&threads[i], NULL, map, (void *)(k));
   }
 
   for (int i = 0; i < sequences.size; i+=max_threads) {
@@ -163,7 +170,12 @@ int main () {
   server_address.sin_addr.s_addr = INADDR_ANY;
 
   // bind
-  bind(server_socket, (struct sockaddr *) &server_address, sizeof(server_address));
+  if(bind(server_socket, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
+    //print the error message
+    perror("bind failed. Error");
+    return 1;
+  }
+  puts("bind done");
   
   // listen
   listen(server_socket, 3);
