@@ -9,9 +9,18 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+// Multithreading
+#include <pthread.h>
+
 #define MAX_LEN 1000000
 
 char *genome;
+
+struct SequencesStruct {
+  int pool_size;
+  int size;
+  char **seqs;
+} sequences;
 
 char *strremove(char *str, const char *sub) {
   char *p, *q, *r;
@@ -61,11 +70,47 @@ void read_genome(int client_socket) {
   return;
 }
 
+char **append(char **oldMatrix, int *size, const char str[MAX_LEN]) {
+  for(int i = 0; i < *size; i++){
+    if(strcmp(oldMatrix[i], str) == 0){
+      return oldMatrix;
+    }
+  }
+
+  char **newMatrix = (char **)realloc(oldMatrix, (*size + 1)*sizeof(char *));
+  newMatrix[*size] = (char *)malloc(MAX_LEN*sizeof(char));
+  strcpy(newMatrix[*size], str);
+  (*size)++;
+
+  return newMatrix;
+}
+
+void *map(void* arg) {
+
+  int max_threads;
+
+  if(sequences.size < sequences.pool_size) {
+    max_threads = sequences.size;
+  } else {
+    max_threads = sequences.pool_size;
+  }
+  int *start = (int *)arg;
+  for (int index = *start; index < *start + max_threads && index < sequences.size; index++) {
+    printf("Test #%d %s = ", index, sequences.seqs[index]);
+    if (strstr(genome, sequences.seqs[index]) == NULL) {
+      printf("Not found\n");
+    } else {
+      printf("Found \n");
+    }
+  }
+
+}
+
 void search_sequences(int client_socket) {
   char *buff;
   buff = malloc(MAX_LEN);
 
-  int number_of_test = 1;
+  int number_of_test = 0;
   int end_flag = 0;
 
   for (;;) {
@@ -77,21 +122,36 @@ void search_sequences(int client_socket) {
       buff = strremove(buff, "END");
       end_flag = 1;
     }
-
-    printf("Test #%d = ", number_of_test);
-
-    if (strstr(genome, buff) == NULL) {
-      printf("Not found\n");
-    } else {
-      printf("Found \n");
-    }
-    number_of_test++;
-
+    sequences.seqs = append(sequences.seqs, &sequences.size, buff);
     if(end_flag) break;
   }
+
+  // Search by threads
+  int rc, idx, max_threads;
+
+  if(sequences.size < sequences.pool_size) {
+    max_threads = sequences.size;
+  } else {
+    max_threads = sequences.pool_size;
+  }
+
+  pthread_t threads[max_threads];
+  for (int i = 0; i < sequences.size; i+=max_threads) {
+      rc = pthread_create(&threads[i], NULL, map, (void *)&idx);
+  }
+
+  for (int i = 0; i < sequences.size; i+=max_threads) {
+      rc = pthread_join(threads[i], NULL);
+  }
+
+
 }
 
 int main () {
+
+  sequences.size = 0;
+  sequences.pool_size = 8;
+
   // create socket
   int server_socket;
   server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -133,6 +193,10 @@ int main () {
       
     }
   } while (read_size > 0);
+
+  for(int i = 0; i < sequences.size; i++) {
+    printf("%s\n", sequences.seqs[i]);
+  }
 
   if (read_size == 0) {
     puts("Client disconnected");
