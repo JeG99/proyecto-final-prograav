@@ -17,6 +17,15 @@
 
 char *genome;
 
+int get_digits(int n) {
+  int count = 0;  
+  while(n!=0) {  
+    n=n/10;  
+    count++;  
+  }
+  return count;
+}
+
 struct SequencesStruct {
   int pool_size;
   int size;
@@ -40,6 +49,7 @@ char *strremove(char *str, const char *sub) {
 
 void read_genome(int client_socket) {
   char *buff;
+  char msg[1024];
   buff = malloc(MAX_LEN);
   genome = realloc(genome, MAX_LEN);
 
@@ -64,10 +74,21 @@ void read_genome(int client_socket) {
 
     strcat(genome, buff);
 
+    sprintf(msg, "%d", (int) strlen(genome));
+    //printf("%lu\n", strlen(msg));
+    for(;;) {
+      if(send(client_socket, msg, strlen(msg), 0) < 0) {
+        puts("Send failed");
+        break;
+      } else {
+        break;
+      }
+    }
+
     if (end_flag) break;
   }
 
-  printf("%lu\n", strlen(genome));
+  //printf("%lu\n", strlen(genome));
 
   return;
 }
@@ -192,6 +213,9 @@ void sort_sequences(int low, int high) {
 
 int main () {
 
+  char send_buff[MAX_LEN];
+  memset(send_buff, 0, MAX_LEN);
+
   sequences.size = 0;
   sequences.pool_size = 8;
 
@@ -236,6 +260,10 @@ int main () {
       }
 
       if (strcmp(msg, "2") == 0) {
+        char int_buff[1024];
+        char double_buff[1024];
+        char resp[1024]; // = "Seq #";
+
         search_sequences(client_socket);
         sort_sequences(0, sequences.size - 1);
         int mapped_count = 0;
@@ -243,12 +271,22 @@ int main () {
         int first = 1;
         int last_mapped = -1;
         for (int i = 0; i < sequences.size; i++) {
+          memset(resp, 0, strlen(resp));
+          strncat(resp, "Seq #", strlen("Seq #"));
           printf("Seq #%d = ", i);
+          memset(int_buff, 0, strlen(int_buff));
+          sprintf(int_buff, "%d", i);
+          strncat(resp, int_buff, strlen(int_buff));
           int idx = sequences.found_idx[i];
           if (idx < 0) {
             printf("Not found\n");
+            strncat(resp, " = Not found\n", strlen(" = Not found\n"));
           } else {
             printf("Found at index %d\n", idx);
+            strncat(resp, " = Found at index ", strlen(" = Found at index "));
+            memset(int_buff, 0, strlen(int_buff));
+            sprintf(int_buff, "%d\n", idx);
+            strncat(resp, int_buff, strlen(int_buff));
             if (first) {
               first = 0;
               mapped_percent += (double)strlen(sequences.seqs[i]) / strlen(genome);
@@ -267,11 +305,41 @@ int main () {
             }
             mapped_count++;
           }
+          strncat(send_buff, resp, strlen(resp));
+          //printf("GENERADA: %s\n", resp);
+
         }
 
+        //printf("%s", send_buff);
+        
+        memset(double_buff, 0, strlen(double_buff));
+        sprintf(double_buff, "El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent);
+        strncat(send_buff, double_buff, strlen(double_buff));
+
         printf("El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent * 100);
+        
+        memset(int_buff, 0, strlen(int_buff));
+        sprintf(int_buff, "%d secuencias mapeadas\n", mapped_count);
+        strncat(send_buff, int_buff, strlen(int_buff));
+
         printf("%d secuencias mapeadas\n", mapped_count);
+        
+        memset(int_buff, 0, strlen(int_buff));
+        sprintf(int_buff, "%d secuencias no mapeadas\n", sequences.size - mapped_count);
+        strncat(send_buff, int_buff, strlen(int_buff));
+        
         printf("%d secuencias no mapeadas\n", sequences.size - mapped_count);
+
+        printf("%s", send_buff);
+
+        for(;;) {
+          if(send(client_socket, send_buff, strlen(send_buff), 0) < 0) {
+            puts("Send failed");
+            break;
+          } else {
+            break;
+          }
+        }
         
       }
       

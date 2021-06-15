@@ -35,6 +35,7 @@ int msleep(long msec)
 }
 
 void upload_genome(char* fName, int server_socket) {
+  char resp[100];
   FILE *fp;
 
   fp = fopen(fName, "r");
@@ -54,6 +55,17 @@ void upload_genome(char* fName, int server_socket) {
   
   char* endMsg = "END_GENOME";
   send(server_socket, endMsg, strlen(endMsg), 0);
+  memset(resp, 0, 100);
+  for(;;) {
+    if( recv(server_socket , resp , 100 , 0) < 0) {
+      puts("recv failed");
+      break;
+    } else { 
+      break;
+    }
+  }
+  strncpy(resp, resp, strlen(resp));
+  printf("Genome size: %s\n", resp);
 
   free(buff);
 
@@ -61,6 +73,7 @@ void upload_genome(char* fName, int server_socket) {
 }
 
 void search_sequences(char* fName, int server_socket) {
+  char resp[MAX_LEN];
   FILE *fp;
 
   fp = fopen(fName, "r");
@@ -81,6 +94,18 @@ void search_sequences(char* fName, int server_socket) {
   
   char* endMsg = "END";
   send(server_socket, endMsg, strlen(endMsg), 0);
+
+  memset(resp, 0, MAX_LEN);
+  for(;;) {
+    if( recv(server_socket , resp , MAX_LEN , 0) < 0) {
+      puts("recv failed");
+      break;
+    } else { 
+      break;
+    }
+  }
+  strncpy(resp, resp, strlen(resp));
+  printf("%s", resp);
 
   free(buff);
 
