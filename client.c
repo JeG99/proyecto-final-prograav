@@ -73,7 +73,7 @@ void search_sequences(char* fName, int server_socket) {
 
   while (fgets(buff, MAX_LEN, fp) != NULL) {
     buff[strcspn(buff, "\r\n")] = 0;
-    msleep(100);
+    msleep(10);
     send(server_socket, buff, strlen(buff), 0);
   }
   

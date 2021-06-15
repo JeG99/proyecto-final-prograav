@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // Socket imports
 #include <sys/types.h>
@@ -87,18 +88,10 @@ char **append(char **oldMatrix, int *size, const char str[MAX_LEN]) {
 }
 
 void *map(void* arg) {
-
-  int max_threads;
-
-  if(sequences.size < sequences.pool_size) {
-    max_threads = sequences.size;
-  } else {
-    max_threads = sequences.pool_size;
-  }
   int start = (int)arg;
-  for (int index = start; index < start + max_threads && index < sequences.size; index++) {
-    printf("Test #%d %s = ", index, sequences.seqs[index]);
+  for (int index = start; index < start + sequences.pool_size && index < sequences.size; index++) {
     char* search = strstr(genome, sequences.seqs[index]);
+    printf("Test #%d = ", index);
     if (search == NULL) {
       printf("Not found\n");
     } else {
@@ -138,16 +131,16 @@ void search_sequences(int client_socket) {
   if(sequences.size < sequences.pool_size) {
     max_threads = sequences.size;
   } else {
-    max_threads = sequences.pool_size;
+    max_threads = ceil((double)sequences.size / sequences.pool_size);
   }
   if (max_threads == 0) max_threads = 1;
 
   pthread_t threads[max_threads];
-  for (int i = 0, k = 0; i < sequences.size / max_threads; i++, k += max_threads) {
+  for (int i = 0, k = 0; i < max_threads; i++, k += sequences.pool_size) {
       rc = pthread_create(&threads[i], NULL, map, (void *)(k));
   }
 
-  for (int i = 0; i < sequences.size; i+=max_threads) {
+  for (int i = 0; i < max_threads; i++) {
       rc = pthread_join(threads[i], NULL);
   }
 
@@ -206,9 +199,9 @@ int main () {
     }
   } while (read_size > 0);
 
-  for(int i = 0; i < sequences.size; i++) {
-    printf("%s\n", sequences.seqs[i]);
-  }
+  // for(int i = 0; i < sequences.size; i++) {
+  //   printf("%s\n", sequences.seqs[i]);
+  // }
 
   if (read_size == 0) {
     puts("Client disconnected");
