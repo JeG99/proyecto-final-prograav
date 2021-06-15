@@ -97,6 +97,7 @@ void search_sequences(char* fName, int server_socket) {
 
   char *buff;
   buff = malloc(MAX_LEN);
+  memset(buff, 0, MAX_LEN);
 
   while (fgets(buff, MAX_LEN, fp) != NULL) {
     buff[strcspn(buff, "\r\n")] = 0;

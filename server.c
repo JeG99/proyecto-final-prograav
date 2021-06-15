@@ -51,7 +51,9 @@ void read_genome(int client_socket) {
   char *buff;
   char msg[MAX_LEN];
   buff = malloc(MAX_LEN);
-  genome = realloc(genome, MAX_LEN);
+  free(genome);
+  genome = NULL;
+  genome = malloc(MAX_LEN);
 
   int first_pass = 1;
   int end_flag = 0;
@@ -72,8 +74,7 @@ void read_genome(int client_socket) {
       end_flag = 1;
     }
 
-
-    strcpy(genome, buff);
+    strcat(genome, buff);
 
     if (end_flag) break;
   }
@@ -127,6 +128,15 @@ void *map(void* arg) {
 
 
 void search_sequences(int client_socket) {
+  if(sequences.size > 0) {
+    for(int i = 0; i < sequences.size; i++) {
+      free(sequences.seqs[i]);
+    }
+    free(sequences.found_idx);
+    sequences.size = 0;
+    sequences.pool_size = 8;
+  }
+  //if(sequences.seqs[0] != NULL) printf("%s\n", sequences.seqs[0]);
   char *buff;
   buff = malloc(MAX_LEN);
 
@@ -146,6 +156,10 @@ void search_sequences(int client_socket) {
     sequences.found_idx = (int *)realloc(sequences.found_idx, (sequences.size) * sizeof(int));
     sequences.found_idx[sequences.size - 1] = -1;
     if(end_flag) break;
+  }
+  printf("%d\n", sequences.size);
+  for(int i = 0; i < sequences.size; i++) {
+    printf("%s\n", sequences.seqs[i]);
   }
 
   // Search by threads
