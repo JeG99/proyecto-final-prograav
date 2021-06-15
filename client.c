@@ -35,9 +35,17 @@ int msleep(long msec)
 }
 
 void upload_genome(char* fName, int server_socket) {
+  char resp[MAX_LEN];
+  char fname[1024];
   FILE *fp;
 
   fp = fopen(fName, "r");
+  while(fp == NULL) {
+    printf("Este archivo no existe, intente de nuevo: ");
+    scanf("%s", fname);
+    fp = fopen(fname, "r");
+  }
+
   if (fp == NULL) {
     perror("Error al abrir el archivo");
   }
@@ -54,6 +62,17 @@ void upload_genome(char* fName, int server_socket) {
   
   char* endMsg = "END_GENOME";
   send(server_socket, endMsg, strlen(endMsg), 0);
+  memset(resp, 0, MAX_LEN);
+  for(;;) {
+    if( recv(server_socket , resp , MAX_LEN , 0) < 0) {
+      puts("recv failed");
+      break;
+    } else { 
+      break;
+    }
+  }
+
+  printf("Genome size: %s\n", resp);
 
   free(buff);
 
@@ -61,15 +80,24 @@ void upload_genome(char* fName, int server_socket) {
 }
 
 void search_sequences(char* fName, int server_socket) {
+  char resp[MAX_LEN];
+  char fname[1024];
   FILE *fp;
 
   fp = fopen(fName, "r");
+  while(fp == NULL) {
+    printf("Este archivo no existe, intente de nuevo: ");
+    scanf("%s", fname);
+    fp = fopen(fname, "r");
+  }
+
   if (fp == NULL) {
     perror("Error al abrir el archivo");
   }
 
   char *buff;
   buff = malloc(MAX_LEN);
+  memset(buff, 0, MAX_LEN);
 
   while (fgets(buff, MAX_LEN, fp) != NULL) {
     buff[strcspn(buff, "\r\n")] = 0;
@@ -81,6 +109,18 @@ void search_sequences(char* fName, int server_socket) {
   
   char* endMsg = "END";
   send(server_socket, endMsg, strlen(endMsg), 0);
+
+  memset(resp, 0, MAX_LEN);
+  for(;;) {
+    if( recv(server_socket , resp , MAX_LEN , 0) < 0) {
+      puts("recv failed");
+      break;
+    } else { 
+      break;
+    }
+  }
+
+  printf("%s", resp);
 
   free(buff);
 
@@ -128,6 +168,10 @@ int main () {
       strcpy(msg, "2");
       send(server_socket, msg, strlen(msg), 0);
       search_sequences(fName, server_socket);
+    }
+
+    if (command != 1 && command != 2 && command != 3) {
+      printf("--------Este comando no existe, por favor intente de nuevo--------\n");
     }
 
     printf("\n");
