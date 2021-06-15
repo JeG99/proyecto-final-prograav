@@ -40,6 +40,7 @@ void upload_genome(char* fName, int server_socket) {
   fp = fopen(fName, "r");
   if (fp == NULL) {
     perror("Error al abrir el archivo");
+    return;
   }
 
   char *buff;
@@ -67,6 +68,7 @@ void upload_sequences(char* fName, int server_socket) {
   fp = fopen(fName, "r");
   if (fp == NULL) {
     perror("Error al abrir el archivo");
+    return;
   }
 
   char *buff;
@@ -126,6 +128,18 @@ void print_sequences_results(int server_socket) {
   return;
 }
 
+int check_file(char* fName) {
+  FILE *fp;
+  fp = fopen(fName, "r");
+
+  if (fp == NULL) {
+    printf("El nombre de archivo ingresado no existe\n");
+    return 0;
+  }
+
+  return 1;
+}
+
 int main () {
   // create socket
   int server_socket;
@@ -143,35 +157,41 @@ int main () {
     printf("Socket error: error al crear la connecion\n\n");
   }
 
-  int command;
+  char command;
   char msg[100];
 
   do {
     bzero(msg, 100);
     printf("Lista de comandos:\n\n1) Subir genoma\n2) Subir sequencias\n3) Salir\n\nIngrese el numero de su opcion: ");
-    scanf("%d", &command);
+    scanf("%c", &command);
 
-    if (command == 1) {
+    if (command == '1') {
       char fName[100];
       printf("\n======== SUBIR GENOMA ========\nIngrese el nombre del archivo: ");
       scanf("%s", fName);
-      strcpy(msg, "1");
-      send(server_socket, msg, strlen(msg), 0);
-      upload_genome(fName, server_socket);
+
+      if (check_file(fName)){
+        strcpy(msg, "1");
+        send(server_socket, msg, strlen(msg), 0);
+        upload_genome(fName, server_socket);
+      }
     }
 
-    if (command == 2) {
+    if (command == '2') {
       char fName[100];
       printf("\n======== SUBIR SEQUENCIAS ========\nIngrese el nombre del archivo: ");
       scanf("%s", fName);
-      strcpy(msg, "2");
-      send(server_socket, msg, strlen(msg), 0);
-      upload_sequences(fName, server_socket);
-      print_sequences_results(server_socket);
+
+      if (check_file(fName)){
+        strcpy(msg, "2");
+        send(server_socket, msg, strlen(msg), 0);
+        upload_sequences(fName, server_socket);
+        print_sequences_results(server_socket);
+      }
     }
 
     printf("\n");
-  } while(command != 3);
+  } while(command != '3');
 
   close(server_socket);
 
