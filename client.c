@@ -36,9 +36,16 @@ int msleep(long msec)
 
 void upload_genome(char* fName, int server_socket) {
   char resp[100];
+  char fname[1024];
   FILE *fp;
 
   fp = fopen(fName, "r");
+  while(fp == NULL) {
+    printf("Este archivo no existe, intente de nuevo: ");
+    scanf("%s", fname);
+    fp = fopen(fname, "r");
+  }
+
   if (fp == NULL) {
     perror("Error al abrir el archivo");
   }
@@ -74,9 +81,16 @@ void upload_genome(char* fName, int server_socket) {
 
 void search_sequences(char* fName, int server_socket) {
   char resp[MAX_LEN];
+  char fname[1024];
   FILE *fp;
 
   fp = fopen(fName, "r");
+  while(fp == NULL) {
+    printf("Este archivo no existe, intente de nuevo: ");
+    scanf("%s", fname);
+    fp = fopen(fname, "r");
+  }
+
   if (fp == NULL) {
     perror("Error al abrir el archivo");
   }
