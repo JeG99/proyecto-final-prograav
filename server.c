@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // Socket imports
 #include <sys/types.h>
@@ -20,6 +21,7 @@ struct SequencesStruct {
   int pool_size;
   int size;
   char **seqs;
+  int *found_idx;
 } sequences;
 
 char *strremove(char *str, const char *sub) {
@@ -86,25 +88,22 @@ char **append(char **oldMatrix, int *size, const char str[MAX_LEN]) {
 }
 
 void *map(void* arg) {
-
-  int max_threads;
-
-  if(sequences.size < sequences.pool_size) {
-    max_threads = sequences.size;
-  } else {
-    max_threads = sequences.pool_size;
-  }
-  int *start = (int *)arg;
-  for (int index = *start; index < *start + max_threads && index < sequences.size; index++) {
-    printf("Test #%d %s = ", index, sequences.seqs[index]);
-    if (strstr(genome, sequences.seqs[index]) == NULL) {
-      printf("Not found\n");
+  int start = (int)arg;
+  for (int index = start; index < start + sequences.pool_size && index < sequences.size; index++) {
+    char* search = strstr(genome, sequences.seqs[index]);
+    // printf("Test #%d = ", index);
+    if (search == NULL) {
+      // printf("Not found\n");
     } else {
-      printf("Found \n");
+      int idx = search - genome;
+      // printf("Found at index %d\n", idx);
+      sequences.found_idx[index] = idx;
     }
   }
 
 }
+
+
 
 void search_sequences(int client_socket) {
   char *buff;
@@ -123,28 +122,72 @@ void search_sequences(int client_socket) {
       end_flag = 1;
     }
     sequences.seqs = append(sequences.seqs, &sequences.size, buff);
+    sequences.found_idx = (int *)realloc(sequences.found_idx, (sequences.size) * sizeof(int));
+    sequences.found_idx[sequences.size - 1] = -1;
     if(end_flag) break;
   }
 
   // Search by threads
   int rc, idx, max_threads;
 
-  if(sequences.size < sequences.pool_size) {
-    max_threads = sequences.size;
-  } else {
-    max_threads = sequences.pool_size;
-  }
+  int thread_no = 8;
+
+  sequences.pool_size = ceil((double)sequences.size / thread_no);
+
+  // if(sequences.size < sequences.pool_size) {
+  //   max_threads = sequences.size;
+  // } else {
+  //   max_threads = ceil((double)sequences.size / sequences.pool_size);
+  // }
+  // if (max_threads == 0) max_threads = 1;
+
+  max_threads = thread_no;
 
   pthread_t threads[max_threads];
-  for (int i = 0; i < sequences.size; i+=max_threads) {
-      rc = pthread_create(&threads[i], NULL, map, (void *)&idx);
+  for (int i = 0, k = 0; i < max_threads; i++, k += sequences.pool_size) {
+      rc = pthread_create(&threads[i], NULL, map, (void *)(k));
   }
 
-  for (int i = 0; i < sequences.size; i+=max_threads) {
+  for (int i = 0; i < max_threads; i++) {
       rc = pthread_join(threads[i], NULL);
   }
 
 
+}
+
+void make_swap(int i, int j) {
+  int tmp_idx = sequences.found_idx[i];
+  sequences.found_idx[i] = sequences.found_idx[j];
+  sequences.found_idx[j] = tmp_idx;
+
+  char* tmp_seq = sequences.seqs[i];
+  sequences.seqs[i] = sequences.seqs[j];
+  sequences.seqs[j] = tmp_seq;
+}
+
+
+int sort_partition(int low, int high) {
+  int pivot = sequences.found_idx[high];
+  
+  int i = (low - 1);
+  for (int j = low; j < high; j++) {
+    if (sequences.found_idx[j] <= pivot) {
+      i++;
+      make_swap(i, j);
+    }
+  }
+
+  make_swap(i + 1, high);
+  
+  return (i + 1);
+}
+
+void sort_sequences(int low, int high) {
+  if (low < high) {
+    int pi = sort_partition(low, high);
+    sort_sequences(low, pi - 1);    
+    sort_sequences(pi + 1, high);
+  }
 }
 
 int main () {
@@ -163,7 +206,12 @@ int main () {
   server_address.sin_addr.s_addr = INADDR_ANY;
 
   // bind
-  bind(server_socket, (struct sockaddr *) &server_address, sizeof(server_address));
+  if(bind(server_socket, (struct sockaddr *) &server_address, sizeof(server_address)) < 0) {
+    //print the error message
+    perror("bind failed. Error");
+    return 1;
+  }
+  puts("bind done");
   
   // listen
   listen(server_socket, 3);
@@ -189,14 +237,50 @@ int main () {
 
       if (strcmp(msg, "2") == 0) {
         search_sequences(client_socket);
+        sort_sequences(0, sequences.size - 1);
+        int mapped_count = 0;
+        double mapped_percent = 0;
+        int first = 1;
+        int last_mapped = -1;
+        for (int i = 0; i < sequences.size; i++) {
+          printf("Seq #%d = ", i);
+          int idx = sequences.found_idx[i];
+          if (idx < 0) {
+            printf("Not found\n");
+          } else {
+            printf("Found at index %d\n", idx);
+            if (first) {
+              first = 0;
+              mapped_percent += (double)strlen(sequences.seqs[i]) / strlen(genome);
+              last_mapped = i;
+            } else if (!first) {
+              int i_first = sequences.found_idx[last_mapped], i_last = sequences.found_idx[last_mapped] + strlen(sequences.seqs[last_mapped]) - 1;
+              int j_first = sequences.found_idx[i], j_last = sequences.found_idx[i] + strlen(sequences.seqs[i]) - 1;
+
+              if (j_first > i_last) {
+                mapped_percent += (double)strlen(sequences.seqs[i]) / strlen(genome);
+                last_mapped = i;
+              } else if (j_last - i_last > 0) {
+                mapped_percent += (double)(j_last - i_last) / strlen(genome);
+                last_mapped = i;
+              } 
+            }
+            mapped_count++;
+          }
+        }
+
+        printf("El archivo cubre el %.2f %% del genoma de referencia\n", mapped_percent * 100);
+        printf("%d secuencias mapeadas\n", mapped_count);
+        printf("%d secuencias no mapeadas\n", sequences.size - mapped_count);
+        
       }
       
     }
   } while (read_size > 0);
 
-  for(int i = 0; i < sequences.size; i++) {
-    printf("%s\n", sequences.seqs[i]);
-  }
+  // for(int i = 0; i < sequences.size; i++) {
+  //   printf("%s\n", sequences.seqs[i]);
+  // }
 
   if (read_size == 0) {
     puts("Client disconnected");
