@@ -157,15 +157,18 @@ int main () {
     printf("Socket error: error al crear la connecion\n\n");
   }
 
-  char command;
+  int command;
   char msg[100];
 
   do {
     bzero(msg, 100);
     printf("Lista de comandos:\n\n1) Subir genoma\n2) Subir sequencias\n3) Salir\n\nIngrese el numero de su opcion: ");
-    scanf("%c", &command);
+    
+    scanf("%d", &command);
 
-    if (command == '1') {
+    printf("Comando ingresado %d\n", command);
+
+    if (command == 1) {
       char fName[100];
       printf("\n======== SUBIR GENOMA ========\nIngrese el nombre del archivo: ");
       scanf("%s", fName);
@@ -177,7 +180,7 @@ int main () {
       }
     }
 
-    if (command == '2') {
+    if (command == 2) {
       char fName[100];
       printf("\n======== SUBIR SEQUENCIAS ========\nIngrese el nombre del archivo: ");
       scanf("%s", fName);
@@ -191,7 +194,7 @@ int main () {
     }
 
     printf("\n");
-  } while(command != '3');
+  } while(command != 3);
 
   close(server_socket);
 
