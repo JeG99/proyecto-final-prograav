@@ -13,11 +13,12 @@
 
 int main () {
   char* str;
+  char* strRes;
   str = malloc(MAX_LEN);
 
   FILE *fp;
 
-  fp = fopen("long_test.txt", "r");
+  fp = fopen("test1.txt", "r");
   if (fp == NULL) {
     perror("Error al abrir el archivo");
   }
@@ -35,11 +36,14 @@ int main () {
     first_pass = 0;
   }
 
+  strRes = malloc(strlen(str) + 1);
+  strcpy(strRes, str);
+
   buff = realloc(buff, MAX_LEN);
   
   fclose(fp);
 
-  fp = fopen("long_seq.txt", "r");
+  fp = fopen("seq1.txt", "r");
   if (fp == NULL) {
     perror("Error al abrir el archivo");
   }
@@ -50,13 +54,26 @@ int main () {
     buff[strcspn(buff, "\r\n")] = 0;
 
     printf("Test #%d = ", number_of_test);
-    if (strstr(str, buff) == NULL) {
+
+    char *p = strstr(str, buff);
+
+    if (p == NULL) {
       printf("Not found\n");
     } else {
-      printf("Found \n");
+      int start = p-str;
+      // int end = start + strlen(p);
+
+      printf("Found, starting in %d\n", start);
+
+      for (int i = 0; i < strlen(buff); i++) {
+        strRes[start + i] = '1';
+      }
     }
+
     number_of_test++;
   }
+
+  printf("\nResult genome\n%s", strRes);
 
   free(buff);
   free(str);

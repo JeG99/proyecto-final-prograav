@@ -48,11 +48,12 @@ void upload_genome(char* fName, int server_socket) {
   while (fgets(buff, MAX_LEN, fp) != NULL) {
     buff[strcspn(buff, "\r\n")] = 0;
     send(server_socket, buff, strlen(buff), 0);
+    msleep(25);
   }
   
   fclose(fp);
   
-  char* endMsg = "END_GENOME";
+  char* endMsg = "END";
   send(server_socket, endMsg, strlen(endMsg), 0);
 
   free(buff);
@@ -60,7 +61,7 @@ void upload_genome(char* fName, int server_socket) {
   return;
 }
 
-void search_sequences(char* fName, int server_socket) {
+void upload_sequences(char* fName, int server_socket) {
   FILE *fp;
 
   fp = fopen(fName, "r");
@@ -73,8 +74,8 @@ void search_sequences(char* fName, int server_socket) {
 
   while (fgets(buff, MAX_LEN, fp) != NULL) {
     buff[strcspn(buff, "\r\n")] = 0;
-    msleep(100);
     send(server_socket, buff, strlen(buff), 0);
+    msleep(25);
   }
   
   fclose(fp);
@@ -83,6 +84,44 @@ void search_sequences(char* fName, int server_socket) {
   send(server_socket, endMsg, strlen(endMsg), 0);
 
   free(buff);
+
+  return;
+}
+
+void print_sequences_results(int server_socket) {
+  printf("\nResultados:\n\n");
+
+  char *buff;
+  buff = malloc(MAX_LEN);
+
+  for (;;) {
+    bzero(buff, MAX_LEN);
+    recv(server_socket , buff , MAX_LEN , 0);
+    buff[strcspn(buff, "\r\n")] = 0;
+
+    if (strcmp(buff, "END") == 0) {
+      break;
+    }
+
+    printf("%s\n", buff);
+  }
+
+  printf("\n");
+
+  bzero(buff, MAX_LEN);
+  recv(server_socket , buff , MAX_LEN , 0);
+  buff[strcspn(buff, "\r\n")] = 0;
+  printf("%s\n", buff);
+  
+  bzero(buff, MAX_LEN);
+  recv(server_socket , buff , MAX_LEN , 0);
+  buff[strcspn(buff, "\r\n")] = 0;
+  printf("%s\n", buff);
+
+  bzero(buff, MAX_LEN);
+  recv(server_socket , buff , MAX_LEN , 0);
+  buff[strcspn(buff, "\r\n")] = 0;
+  printf("%s\n", buff);
 
   return;
 }
@@ -109,7 +148,7 @@ int main () {
 
   do {
     bzero(msg, 100);
-    printf("Lista de comandos:\n\n1) Subir genoma\n2) Buscar sequencias\n3) Salir\n\nIngrese el numero de su opcion: ");
+    printf("Lista de comandos:\n\n1) Subir genoma\n2) Subir sequencias\n3) Salir\n\nIngrese el numero de su opcion: ");
     scanf("%d", &command);
 
     if (command == 1) {
@@ -123,11 +162,12 @@ int main () {
 
     if (command == 2) {
       char fName[100];
-      printf("\n======== BUSCAR SEQUENCIAS ========\nIngrese el nombre del archivo: ");
+      printf("\n======== SUBIR SEQUENCIAS ========\nIngrese el nombre del archivo: ");
       scanf("%s", fName);
       strcpy(msg, "2");
       send(server_socket, msg, strlen(msg), 0);
-      search_sequences(fName, server_socket);
+      upload_sequences(fName, server_socket);
+      print_sequences_results(server_socket);
     }
 
     printf("\n");

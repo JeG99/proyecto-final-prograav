@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <errno.h> 
+#include <omp.h>
 
 // Socket imports
 #include <sys/types.h>
@@ -10,21 +13,64 @@
 #include <unistd.h>
 
 #define MAX_LEN 1000000
+#define NUM_THREADS 4 // = # of cores in macbook pro
 
 char *genome;
+char *genomeCheck;
 
-char *strremove(char *str, const char *sub) {
-  char *p, *q, *r;
-  if ((q = r = strstr(str, sub)) != NULL) {
-      size_t len = strlen(sub);
-      while ((r = strstr(p = r + len, sub)) != NULL) {
-          while (p < r)
-              *q++ = *p++;
-      }
-      while ((*q++ = *p++) != '\0')
-          continue;
+typedef struct {
+  char **array;
+  size_t used;
+  size_t size;
+} Array;
+
+void initArray(Array *a, size_t initialSize) {
+  a->array = malloc(initialSize * sizeof(char*));
+  a->used = 0;
+  a->size = initialSize;
+}
+
+void insertArray(Array *a, char *element) {
+  if (a->used == a->size) {
+    a->size *= 2;
+    a->array = realloc(a->array, a->size * sizeof(char*));
   }
-  return str;
+
+  a->array[a->used] = malloc(strlen(element) + 1);
+  strcpy(a->array[a->used], element);
+  a->used++;
+}
+
+void freeArray(Array *a) {
+  free(a->array);
+  a->array = NULL;
+  a->used = a->size = 0;
+}
+
+Array sequences;
+Array sequencesResults;
+
+int found_seq;
+int total_seq;
+int amount_found;
+
+int msleep(long msec) {
+  struct timespec ts;
+  int res;
+
+  if (msec < 0) {
+      errno = EINVAL;
+      return -1;
+  }
+
+  ts.tv_sec = msec / 1000;
+  ts.tv_nsec = (msec % 1000) * 1000000;
+
+  do {
+    res = nanosleep(&ts, &ts);
+  } while (res && errno == EINTR);
+
+  return res;
 }
 
 void read_genome(int client_socket) {
@@ -33,7 +79,6 @@ void read_genome(int client_socket) {
   genome = realloc(genome, MAX_LEN);
 
   int first_pass = 1;
-  int end_flag = 0;
 
   for (;;) {
     bzero(buff, MAX_LEN);
@@ -46,49 +91,125 @@ void read_genome(int client_socket) {
 
     first_pass = 0;
 
-    if (strstr(buff, "END") != NULL){
-      buff = strremove(buff, "END");
-      end_flag = 1;
+    if (strcmp(buff, "END") == 0) {
+      break;
     }
 
     strcat(genome, buff);
-
-    if (end_flag) break;
   }
 
-  printf("%lu\n", strlen(genome));
+  genomeCheck = malloc(strlen(genome) + 1);
+  strcpy(genomeCheck, genome);
+
+  // printf("%lu\n", strlen(genome));
 
   return;
 }
 
-void search_sequences(int client_socket) {
+void read_sequences(int client_socket) {
   char *buff;
   buff = malloc(MAX_LEN);
+  initArray(&sequences, 10);
 
-  int number_of_test = 1;
-  int end_flag = 0;
+  total_seq = 0;
 
   for (;;) {
     bzero(buff, MAX_LEN);
     recv(client_socket , buff , MAX_LEN , 0);
     buff[strcspn(buff, "\r\n")] = 0;
 
-    if (strstr(buff, "END") != NULL){
-      buff = strremove(buff, "END");
-      end_flag = 1;
+    if (strcmp(buff, "END") == 0) {
+      break;
     }
 
-    printf("Test #%d = ", number_of_test);
-
-    if (strstr(genome, buff) == NULL) {
-      printf("Not found\n");
-    } else {
-      printf("Found \n");
-    }
-    number_of_test++;
-
-    if(end_flag) break;
+    insertArray(&sequences, buff);
+    total_seq++;
   }
+}
+
+void search_sequences(int client_socket) {
+  found_seq = 0;
+  amount_found = 0;
+  initArray(&sequencesResults, 10);
+
+  omp_set_num_threads(NUM_THREADS);
+
+  #pragma omp parallel shared(found_seq, amount_found, sequencesResults, genomeCheck, genome)
+  {
+    #pragma omp for
+    for (int i = 0; i < sequences.used; i++) {
+
+      // printf("Iter %d from thread %d\n", i, omp_get_thread_num());
+
+      // Check if seq is in genome;
+      char *p = strstr(genome, sequences.array[i]);
+
+      // res holds the result string
+      char *res;
+      res = malloc(MAX_LEN);
+      char *appendRes = res;
+
+      appendRes += sprintf(appendRes, "Seq #%d = ", i+1);
+
+      if (p == NULL) {
+        sprintf(appendRes, "No se encontro");
+        // printf("No se encontro\n");
+      } else {
+        #pragma omp critical
+        {
+          found_seq++;
+          for (int j = 0; j < strlen(sequences.array[i]); j++) {
+            if (genomeCheck[p-genome + j] != '1') {
+              genomeCheck[p-genome + j] = '1';
+              amount_found++;
+            }
+          }
+        }
+        sprintf(appendRes, "Se encontro a partir del caracter %ld\n", p-genome);
+        // printf("Se encontro a partir del caracter %ld\n", p-genome);
+      }
+
+      #pragma omp critical
+      {
+        insertArray(&sequencesResults, res);
+      }
+    }
+  }
+
+  char *buff;
+  buff = malloc(MAX_LEN);
+
+  // Send results
+  for (int i = 0; i < sequencesResults.used; i++) {
+    bzero(buff, MAX_LEN);
+
+    strcpy(buff, sequencesResults.array[i]);
+    send(client_socket, buff, strlen(buff), 0);
+    msleep(25);
+  }
+
+  bzero(buff, MAX_LEN);
+  strcpy(buff, "END");
+  send(client_socket, buff, strlen(buff), 0);
+  msleep(25);
+
+  double perc = (double) amount_found / strlen(genome);
+  // printf("%d %lu %f\n", amount_found, strlen(genome), perc);
+  
+  bzero(buff, MAX_LEN);
+  sprintf(buff, "El archivo cubre el %c%f del genoma de referencia\n", 37, perc * 100);
+  send(client_socket, buff, strlen(buff), 0);
+  msleep(25);
+
+  bzero(buff, MAX_LEN);
+  sprintf(buff, "%d secuencias mapeadas\n", found_seq);
+  send(client_socket, buff, strlen(buff), 0);
+  msleep(25);
+
+  bzero(buff, MAX_LEN);
+  sprintf(buff, "%d secuencias no mapeadas\n", total_seq - found_seq);
+  send(client_socket, buff, strlen(buff), 0);
+  msleep(25);
 }
 
 int main () {
@@ -128,6 +249,7 @@ int main () {
       }
 
       if (strcmp(msg, "2") == 0) {
+        read_sequences(client_socket);
         search_sequences(client_socket);
       }
       
