@@ -50,9 +50,7 @@ void freeArray(Array *a) {
 Array sequences;
 Array sequencesResults;
 
-int found_seq;
 int total_seq;
-int amount_found;
 
 int msleep(long msec) {
   struct timespec ts;
@@ -73,7 +71,17 @@ int msleep(long msec) {
   return res;
 }
 
+int has_run_genome = 0;
+int has_run_sequence = 0;
+
 void read_genome(int client_socket) {
+  if (has_run_genome) {
+    free(genome);
+    genome = malloc(MAX_LEN);
+    free(genomeCheck);
+    genomeCheck = malloc(MAX_LEN);
+  }
+
   char *buff;
   buff = malloc(MAX_LEN);
   genome = realloc(genome, MAX_LEN);
@@ -103,10 +111,18 @@ void read_genome(int client_socket) {
 
   // printf("%lu\n", strlen(genome));
 
+  has_run_genome = 1;
+
   return;
 }
 
 void read_sequences(int client_socket) {
+  if (has_run_sequence) {
+    freeArray(&sequences);
+    freeArray(&sequencesResults);
+    strcpy(genomeCheck, genome);
+  }
+
   char *buff;
   buff = malloc(MAX_LEN);
   initArray(&sequences, 10);
@@ -125,11 +141,13 @@ void read_sequences(int client_socket) {
     insertArray(&sequences, buff);
     total_seq++;
   }
+
+  has_run_sequence = 1;
 }
 
 void search_sequences(int client_socket) {
-  found_seq = 0;
-  amount_found = 0;
+  int found_seq = 0;
+  int amount_found = 0;
   initArray(&sequencesResults, 10);
 
   omp_set_num_threads(NUM_THREADS);
@@ -194,7 +212,7 @@ void search_sequences(int client_socket) {
   msleep(25);
 
   double perc = (double) amount_found / strlen(genome);
-  // printf("%d %lu %f\n", amount_found, strlen(genome), perc);
+  printf("%d %lu %f\n", amount_found, strlen(genome), perc);
   
   bzero(buff, MAX_LEN);
   sprintf(buff, "El archivo cubre el %c%f del genoma de referencia\n", 37, perc * 100);
@@ -210,15 +228,6 @@ void search_sequences(int client_socket) {
   sprintf(buff, "%d secuencias no mapeadas\n", total_seq - found_seq);
   send(client_socket, buff, strlen(buff), 0);
   msleep(25);
-}
-
-void cleanup() {
-  free(genome);
-  genome = malloc(MAX_LEN);
-  free(genomeCheck);
-  genomeCheck = malloc(MAX_LEN);
-  freeArray(&sequences);
-  freeArray(&sequencesResults);
 }
 
 int main () {
@@ -260,7 +269,6 @@ int main () {
       if (strcmp(msg, "2") == 0) {
         read_sequences(client_socket);
         search_sequences(client_socket);
-        cleanup();
       }
       
     }
